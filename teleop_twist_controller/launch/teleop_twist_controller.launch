@@ -1,0 +1,20 @@
+<launch>
+    <!-- Arguments -->
+    <arg name="device_number" default="5"/>
+    <arg name="speed" default="0.26"/>
+    <arg name="turn" default="1.82"/>
+    <arg name="cmd_vel_topic" default="/cmd_vel"/>
+    <arg name="repeat_rate" default="0.0"/>
+    <arg name="stamped" default="False"/>
+    <arg name="frame_id" default="base_link"/>
+
+    <node pkg="teleop_twist_controller" type="teleop_twist_controller" name="teleop_twist_controller" output="screen">
+        <param name="device_number" value="$(arg device_number)"/>
+        <param name="speed" value="$(arg speed)"/>
+        <param name="turn" value="$(arg turn)"/>
+        <param name="cmd_vel_topic" value="$(arg cmd_vel_topic)"/>
+        <param name="repeat_rate" value="$(arg repeat_rate)"/>
+        <param name="stamped" value="$(arg stamped)"/>
+        <param name="frame_id" value="$(arg frame_id)"/>
+    </node>
+</launch>

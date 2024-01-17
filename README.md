@@ -1,12 +1,10 @@
 # Teleop-Twist-Controller
 
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC_BY--NC--SA_4.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+[![Ubuntu:Focal](https://img.shields.io/badge/Ubuntu-Focal-brightgreen)](https://releases.ubuntu.com/focal/)
+[![ROS:Noetic](https://img.shields.io/badge/ROS-Noetic-blue)](https://wiki.ros.org/noetic/Installation/Ubuntu)
+
 "teleop_twist_controller" is a joystick control package utilized for the movement of ROS robots.
-
-## Environment
-
-- Ubuntu 20.04
-- ROS Noetic
-- Python 3.8.10
 
 ## Requirements
 
@@ -18,7 +16,13 @@
    ```
    python -m pip install -U pygame==2.5.2 --user
    ```
-- Xbox Controllers
+- Xbox Controller
+   ```
+   sudo apt-add-repository -y ppa:rael-gc/ubuntu-xboxdrv
+   ```
+   ```
+   sudo apt-get update
+   ```
    ```
    sudo apt-get install xboxdrv
    ```
@@ -50,19 +54,19 @@
 
 ## How to Use
 
-
 Adjustments can be made by modifying the following parameters:
 
-`count` for selecting which controller to use, with a default value of 4
-`speed` to adjust the maximum linear velocity, defaulting to 0.26
-`turn` to regulate the maximum turning speed, with a standard setting of 1.82
-`repeat_rate` for continuous cmd_vel updates, with a standard setting of 0.0
+| Parameter name | Data Type | detail                                                       |
+| -------------- | ------- | ------------------------------------------------------------ |
+| device_number| int | Set the controller to be used. <br/>default: `5` |
+| speed        | float | Set the maximum and minimum linear velocities. <br/>default: `0.26` |
+| turn         | float | Set the maximum and minimum angular velocities. <br/>default: `1.82` |
+| cmd_vel_topic| string | Set the name of the topic to be published. <br/>default: `/cmd_vel` |
+| repeat_rate  | float | Set the frequency of continuous `cmd_vel_topic` updates. <br/>default: `0.0` |
+| stamped      | bool  | Set the message format to be `TwistStamped`. <br/>default: `False` |
+| frame_id     | string | Set the coordinate system of the message, exclusively applicable to the `TwistStamped` message format. <br/>default: `base_link` |
 
-- Run Teleop Twist Controller :
-   ```
-   rosrun teleop_twist_controller teleop_twist_controller
-   ```
-- Launch Teleop Twist Controller :
+- Activate joystick control :
    ```
    roslaunch teleop_twist_controller teleop_twist_controller.launch
    ```

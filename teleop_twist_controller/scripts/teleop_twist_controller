@@ -1,0 +1,190 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+import threading
+import roslib; roslib.load_manifest('teleop_twist_controller')
+import rospy
+from geometry_msgs.msg import Twist
+from geometry_msgs.msg import TwistStamped
+import pygame
+import sys
+
+TwistMsg = Twist
+
+msg = "\033[32mUse the joystick to control the robot:\npush forward or backward for movement, and move left or right for turning.\033[0m"
+
+# Joystick Initialization and Setup
+def JoystickInit(number):
+    global joystick
+    pygame.init()
+    pygame.joystick.init()
+    count = pygame.joystick.get_count()
+    if number <= count:
+        if number > 0:
+            number -= 1
+        else:
+            print("\033[33mThe joystick number you have set as %d will be automatically reassigned to 1\033[0m" % (number))
+            number = 0
+        joystick = pygame.joystick.Joystick(number)
+        joystick.init()
+        print(msg + "\033[32m\nFor further information, please consult: https://github.com/wenjiu2001/Teleop-Twist-Controller\033[0m")
+    else:
+        print("\033[31mJoystick number %d has not been detected; the current number of joysticks is %d\nFor further information, please consult: https://github.com/wenjiu2001/Teleop-Twist-Controller\033[0m" % (number,count))
+        sys.exit()
+
+# Function to read input from joystick
+def getJoystickInput():
+    pygame.event.pump()
+    x = joystick.get_axis(1)  # Assume axis 1 for forward/backward
+    y = 0  # Add another axis if your joystick has it
+    z = 0  # Add another axis if your joystick has it
+    th = joystick.get_axis(0)  # Assume axis 0 for left/right
+
+    return x, y, z, th
+    
+# Exhibit the linear velocity and angular velocity
+def Vels(speed, turn):
+    return "currently:\tspeed %s\tturn %s " % (speed,turn)
+
+# ROS Publisher Thread
+class PublishThread(threading.Thread):
+    def __init__(self, topic,rate):
+        super(PublishThread, self).__init__()
+        self.publisher = rospy.Publisher(topic, TwistMsg, queue_size=1)
+        self.x = 0.0
+        self.y = 0.0
+        self.z = 0.0
+        self.th = 0.0
+        self.speed = 0.26
+        self.turn = 1.82
+        self.condition = threading.Condition()
+        self.done = False
+
+        # Set timeout to None if rate is 0 (causes new_message to wait forever for new data to publish)
+        if rate != 0.0:
+            self.timeout = 1.0 / rate
+        else:
+            self.timeout = None
+
+        self.start()
+
+    def wait_for_subscribers(self):
+        i = 0
+        while not rospy.is_shutdown() and self.publisher.get_num_connections() == 0:
+            if i == 4:
+                print("Waiting for subscriber to connect to {}".format(self.publisher.name))
+            rospy.sleep(0.5)
+            i += 1
+            i = i % 5
+        if rospy.is_shutdown():
+            raise Exception("Got shutdown request before subscribers connected")
+
+    def update(self, x, y, z, th, speed, turn):
+        self.condition.acquire()
+        self.x = x
+        self.y = y
+        self.z = z
+        self.th = th
+        self.speed = speed
+        self.turn = turn
+        # Notify publish thread that we have a new message.
+        self.condition.notify()
+        self.condition.release()
+
+    def stop(self):
+        self.done = True
+        self.update(0, 0, 0, 0, 0, 0)
+        self.join()
+
+    def run(self):
+        twist_msg = TwistMsg()
+        status = False
+        number = 0
+        linear = 0.0
+        angular = 0.0
+        
+        if stamped:
+            twist = twist_msg.twist
+            twist_msg.header.stamp = rospy.Time.now()
+            twist_msg.header.frame_id = twist_frame
+        else:
+            twist = twist_msg
+        
+        print(Vels(linear, angular))
+
+        while not self.done:
+            if stamped:
+                twist_msg.header.stamp = rospy.Time.now()
+            self.condition.acquire()
+            # Wait for a new message or timeout.
+            self.condition.wait(self.timeout)
+
+            # Copy state into twist message.
+            twist.linear.x = round(self.x * -self.speed, 2)
+            twist.linear.y = round(self.y * self.speed, 2)
+            twist.linear.z = round(self.z * self.speed, 2) 
+            twist.angular.x = 0
+            twist.angular.y = 0
+            twist.angular.z = round(self.th * -self.turn, 2)
+
+            # Instructions for use elucidated.
+            if (number == 1000 and status == True):
+                print(msg)
+                status = False
+            else:
+                pass
+
+            # Display the current linear and angular velocities.
+            if linear != twist.linear.x or angular != twist.angular.z:
+                print(Vels(twist.linear.x, twist.angular.z))
+                linear, angular = twist.linear.x, twist.angular.z
+                status = True
+            else:
+                number = (number + 1) % 1001
+
+            self.condition.release()
+
+            # Publish.
+            self.publisher.publish(twist_msg)
+
+        # Publish stop message when thread exits.
+        twist.linear.x = 0
+        twist.linear.y = 0
+        twist.linear.z = 0
+        twist.angular.x = 0
+        twist.angular.y = 0
+        twist.angular.z = 0
+        self.publisher.publish(twist_msg)
+
+if __name__=="__main__":
+    rospy.init_node('teleop_twist_controller')
+
+    number = int(rospy.get_param("~device_number", 5))
+    speed = float(rospy.get_param("~speed", 0.26))
+    turn = float(rospy.get_param("~turn", 1.82))
+    topic = str(rospy.get_param("~cmd_vel_topic", "/cmd_vel"))
+    repeat = float(rospy.get_param("~repeat_rate", 0.0))
+    stamped = bool(rospy.get_param("~stamped", False))
+    twist_frame = str(rospy.get_param("~frame_id", ''))
+
+    if stamped:
+        TwistMsg = TwistStamped
+    
+    JoystickInit(number)
+
+    pub_thread = PublishThread(topic, repeat)
+
+    try:
+        pub_thread.wait_for_subscribers()
+        pub_thread.update(0, 0, 0, 0, speed, turn)
+
+        while not rospy.is_shutdown():
+            x, y, z, th = getJoystickInput()
+            pub_thread.update(x, y, z, th, speed, turn)
+
+    except Exception as e:
+        print(e)
+
+    finally:
+        pub_thread.stop()
+        pygame.quit()
